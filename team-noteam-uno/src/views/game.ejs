@@ -1,0 +1,624 @@
+<!-- src/views/game.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meme Battle</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body class="bg-gradient-to-br from-purple-900 via-gray-900 to-black min-h-screen text-white">
+    <!-- Game Header -->
+    <header class="p-4 flex justify-between items-center bg-black/30">
+        <div class="text-2xl font-bold">Meme Battle</div>
+        <div id="gameInfo" class="text-lg">
+            Round <span id="currentRound">0</span>/<span id="totalRounds">5</span>
+            <span id="timeLeft" class="ml-4 font-mono"></span>
+        </div>
+    </header>
+
+    <!-- Game Area -->
+    <main class="container mx-auto p-4 flex flex-col min-h-[calc(100vh-8rem)]">
+        <!-- Game Phases -->
+
+        <!-- 1. Submission Phase -->
+        <!-- We'll hide this in favor of the new Meme Creation Modal -->
+        <div id="submissionPhase" class="hidden">
+            <div class="max-w-2xl mx-auto bg-black/30 rounded-xl p-6">
+                <h2 class="text-2xl font-bold mb-4 text-center">Create Your Meme (Old UI)</h2>
+
+                <!-- Meme Template -->
+                <div class="relative mb-6">
+                    <img id="memeTemplate" src="" alt="Meme Template" class="w-full rounded-lg">
+
+                    <!-- Dynamic Caption Input Fields -->
+                    <div id="captionFields" class="mt-4 space-y-4">
+                        <!-- Fields will be added dynamically by old code -->
+                    </div>
+                </div>
+
+                <button id="submitMeme"
+                    class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 transform hover:scale-105">
+                    Submit Meme
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. Voting Phase -->
+        <div id="votingPhase" class="hidden">
+            <div class="max-w-4xl mx-auto">
+                <h2 class="text-2xl font-bold mb-4 text-center">Vote Time!</h2>
+
+                <!-- Current Meme Display -->
+                <div class="bg-black/30 rounded-xl p-6 mb-6">
+                    <div id="currentMemeDisplay" class="relative">
+                        <img id="votingMemeTemplate" src="" alt="Meme" class="w-full rounded-lg">
+                        <!-- Captions will be positioned absolutely -->
+                    </div>
+                </div>
+
+                <!-- Voting Buttons -->
+                <div class="flex justify-center gap-4">
+                    <button id="voteYes"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105">
+                        👍 Like
+                    </button>
+                    <button id="voteNo"
+                        class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105">
+                        👎 Pass
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Results Phase -->
+        <div id="resultsPhase" class="hidden">
+            <div class="max-w-4xl mx-auto">
+                <h2 class="text-2xl font-bold mb-4 text-center">Round Results</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Results will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Player Scores -->
+        <div class="mt-auto pt-8">
+            <div class="max-w-4xl mx-auto bg-black/30 rounded-xl p-4">
+                <h3 class="text-xl font-bold mb-4">Scores</h3>
+                <div id="playerScores" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    <!-- Scores will be populated here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Chat Sidebar -->
+    <div class="fixed right-0 top-0 bottom-0 w-80 bg-black/80 border-l border-white/10 flex flex-col z-50">
+        <!-- Chat Header -->
+        <div class="p-4 border-b border-white/10">
+            <h3 class="text-lg font-bold">Game Chat</h3>
+        </div>
+
+        <!-- Messages Container -->
+        <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4">
+            <!-- Messages will be inserted here -->
+        </div>
+
+        <!-- Chat Input -->
+        <form id="chatForm" class="p-4 border-t border-white/10">
+            <div class="flex gap-2">
+                <input type="text" id="messageInput"
+                    class="flex-1 bg-black/50 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 border border-white/20"
+                    placeholder="Type your message..." autocomplete="off">
+                <button type="submit"
+                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors duration-200">
+                    Send
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="gameOverModal"
+        class="hidden fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50">
+        <div
+            class="bg-gradient-to-br from-purple-900 to-black p-8 rounded-3xl border-2 border-purple-500/50 shadow-2xl max-w-2xl w-full mx-4">
+            <h2
+                class="text-4xl font-bold text-center mb-8 bg-gradient-to-r from-purple-400 to-pink-400 text-transparent bg-clip-text">
+                Game Over!</h2>
+
+            <div id="winnerInfo" class="text-center mb-8">
+                <div class="text-2xl font-bold text-white mb-2">Winner:</div>
+                <div id="winnerName" class="text-3xl font-bold text-purple-400 mb-4"></div>
+                <div class="inline-block bg-black/50 px-6 py-3 rounded-full">
+                    <span class="text-yellow-400">🏆 Meme Lord! 🏆</span>
+                </div>
+            </div>
+
+            <div class="grid gap-4 mb-8">
+                <h3 class="text-xl font-bold text-center text-gray-300 mb-2">Final Standings</h3>
+                <div id="finalStandings" class="space-y-2">
+                    <!-- Player standings will be inserted here -->
+                </div>
+            </div>
+
+            <div class="flex justify-center gap-4">
+                <button onclick="location.href='/games'"
+                    class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-bold transform hover:scale-105 transition-all duration-300">
+                    Back to Lobby
+                </button>
+                <button id="rematchButton"
+                    class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold transform hover:scale-105 transition-all duration-300">
+                    Rematch
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Meme Creation Section (Modal) -->
+    <div id="memeCreationModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center hidden">
+        <div
+            class="bg-gradient-to-br from-purple-900 to-black p-8 rounded-3xl border-2 border-purple-500/50 shadow-2xl max-w-4xl w-full mx-4">
+            <h2 class="text-3xl font-bold text-center mb-6 text-white">Create Your Meme</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Meme Canvas -->
+                <div class="relative bg-white rounded-lg overflow-hidden">
+                    <img id="memeCanvasTemplate" src="" alt="Meme Template" class="w-full h-auto object-contain max-h-[500px]">
+                    <div id="memeTextOverlays" class="absolute inset-0 pointer-events-none"></div>
+                </div>
+
+                <!-- Meme Creation Controls -->
+                <div>
+                    <div id="captionInputs" class="space-y-4 mb-6">
+                        <!-- Dynamic caption inputs will be inserted here -->
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <button id="addTextButton"
+                            class="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg">
+                            Add Text
+                        </button>
+                        <button id="removeTextButton"
+                            class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg">
+                            Remove Text
+                        </button>
+                    </div>
+
+                    <div class="mt-6">
+                        <label class="block text-white mb-2">Text Style</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <select id="fontSelect" class="bg-black/50 text-white p-2 rounded-lg">
+                                <option value="Arial">Arial</option>
+                                <option value="Impact">Impact</option>
+                                <option value="Comic Sans MS">Comic Sans</option>
+                            </select>
+                            <input type="color" id="textColorPicker" class="w-full h-full">
+                            <input type="range" id="textSizeSlider" min="12" max="72" value="36" class="w-full">
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex justify-between">
+                        <button id="cancelMemeCreation"
+                            class="bg-gray-600 hover:bg-gray-700 text-white py-2 px-6 rounded-lg">
+                            Cancel
+                        </button>
+                        <button id="saveMeme" class="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg">
+                            Save Meme
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Meme Creation Logic -->
+    <script>
+
+        function initializeMemeCreation(template) {
+            const canvas = document.getElementById('memeCanvasTemplate');
+            const textOverlays = document.getElementById('memeTextOverlays');
+            const captionInputs = document.getElementById('captionInputs');
+            const addTextButton = document.getElementById('addTextButton');
+            const removeTextButton = document.getElementById('removeTextButton');
+            const fontSelect = document.getElementById('fontSelect');
+            const textColorPicker = document.getElementById('textColorPicker');
+            const textSizeSlider = document.getElementById('textSizeSlider');
+
+            canvas.src = template.url;
+            console.log("🖼️ Setting meme template image src:", template.url);
+            console.log("📦 Full template object received:", template);
+
+
+            // TEMP: Add a load/error test
+            canvas.onload = () => console.log("✅ Meme image loaded");
+            canvas.onerror = () => console.error("❌ Meme image failed to load:", canvas.src);
+
+            textOverlays.innerHTML = '';
+            captionInputs.innerHTML = '';
+
+            function createTextInput(index) {
+                const inputWrapper = document.createElement('div');
+                inputWrapper.innerHTML = `
+                    <input 
+                        type="text" 
+                        placeholder="Caption ${index + 1}" 
+                        class="w-full bg-black/50 text-white p-2 rounded-lg"
+                        data-index="${index}"
+                    >
+                `;
+                captionInputs.appendChild(inputWrapper);
+                const input = inputWrapper.querySelector('input');
+                input.addEventListener('input', () => updateTextOverlay(index, input.value));
+            }
+
+            function updateTextOverlay(index, text) {
+                let overlay = textOverlays.querySelector(`[data-index="${index}"]`);
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.dataset.index = index;
+                    overlay.style.position = 'absolute';
+                    overlay.style.width = '100%';
+                    overlay.style.textAlign = 'center';
+                    overlay.style.color = textColorPicker.value;
+                    overlay.style.fontFamily = fontSelect.value;
+                    overlay.style.fontSize = textSizeSlider.value + 'px';
+                    overlay.style.top = (index + 1) * 25 + '%';
+                    textOverlays.appendChild(overlay);
+                }
+                overlay.textContent = text;
+            }
+
+            for (let i = 0; i < template.captionFields; i++) {
+                createTextInput(i);
+            }
+
+            addTextButton.onclick = () => {
+                createTextInput(captionInputs.children.length);
+            };
+
+            removeTextButton.onclick = () => {
+                if (captionInputs.children.length > 1) {
+                    captionInputs.removeChild(captionInputs.lastChild);
+                    textOverlays.removeChild(textOverlays.lastChild);
+                }
+            };
+
+            fontSelect.onchange = () => {
+                textOverlays.querySelectorAll('div').forEach((overlay) => {
+                    overlay.style.fontFamily = fontSelect.value;
+                });
+            };
+            textColorPicker.onchange = () => {
+                textOverlays.querySelectorAll('div').forEach((overlay) => {
+                    overlay.style.color = textColorPicker.value;
+                });
+            };
+            textSizeSlider.oninput = () => {
+                textOverlays.querySelectorAll('div').forEach((overlay) => {
+                    overlay.style.fontSize = textSizeSlider.value + 'px';
+                });
+            };
+        }
+    </script>
+
+    <!-- Main Game Logic -->
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let allSubmissions = [];
+        let currentVoteIndex = 0;
+        let votingTemplate = null;
+        let currentSubmission = null;
+
+        const socket = io();
+        const gameId = window.location.pathname.split('/').pop();
+        let currentPhase = null;
+
+        let playerId = null;
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            socket.emit('join_game_room', { gameId });
+
+            // Store player ID after connection
+            socket.on('player_info', (data) => {
+                playerId = data.playerId;
+            });
+        });
+
+        socket.on('game_state', (state) => {
+            console.log("⚡ Full game_state received:", JSON.stringify(state, null, 2));
+    
+            const phase = state.round?.status;
+            console.log('🚀 Received new game state phase:', phase);
+
+            if (phase === 'submitting') {
+                setupSubmissionPhase(state.memeTemplate);
+            }
+            updateGameState(state);
+        });
+
+        let currentVotingSubmission = null; // add this near your other global vars
+
+        socket.on('voting_submission', (data) => {
+            console.log("🧠 Raw voting_submission event data:", data);
+    
+            const { submission, template } = data;
+            console.log("👉 Template:", template);
+            console.log("👉 Submission:", submission);
+
+            currentVotingSubmission = submission;
+            votingTemplate = template;
+
+            if (!submission || !submission.captions) {
+                console.warn("🚫 Received invalid submission:", submission);
+                return;
+            }
+
+            // Show the voting UI
+            document.getElementById('votingPhase').classList.remove('hidden');
+            document.getElementById('votingMemeImage').src = template.url;
+
+            // Render captions
+            const captionsContainer = document.getElementById('votingCaptions');
+            captionsContainer.innerHTML = '';
+            submission.captions.forEach((caption) => {
+                const p = document.createElement('p');
+                p.textContent = caption;
+                captionsContainer.appendChild(p);
+            });
+
+            // Enable voting buttons after setup is fully done
+            document.getElementById('voteYes').disabled = false;
+            document.getElementById('voteNo').disabled = false;
+        });
+
+
+
+        socket.on('submit_vote', (data, callback) => {
+            console.log("📨 Received vote:", data);
+            console.log("🔍 Voting on submission:", currentVotingSubmission);
+
+            const result = gamesService.submitVote(
+               data.gameId,
+                socket.data.userId.toString(),
+                data.submissionPlayerId
+            );
+
+            if (result.success && result.game) {
+                callback({ success: true });
+            } else {
+                callback({ success: false, error: result.error });
+            }
+        });
+
+
+
+        socket.on('voting_complete', () => {
+            console.log("✅ Voting complete for this player");
+            document.getElementById('votingPhase').classList.add('hidden');
+        });
+
+        function updateGameState(state) {
+        document.getElementById('currentRound').textContent = state.currentRound;
+        document.getElementById('totalRounds').textContent = state.totalRounds;
+        updateTimer(state.timeLeft);
+
+        const phase = state.round?.status; // ✅ pull correct phase
+        showPhase(phase);
+        currentPhase = phase;
+
+        switch (phase) {
+            case 'submitting':
+                setupSubmissionPhase(state.memeTemplate);
+                break;
+            case 'voting':
+                if (state.round?.status === 'voting' && state.round.submissions.length > 0) {
+                    const firstSubmission = state.round.submissions[0];
+                    setupVotingPhase(state.memeTemplate, firstSubmission.captions);
+                }
+                break;
+            case 'results':
+                showResults(state.results);
+                break;
+        }
+
+        updateScores(state.players);
+        }
+
+        function showPhase(phase) {
+            ['submissionPhase', 'votingPhase', 'resultsPhase'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            currentPhase = phase;
+        }
+
+        function setupSubmissionPhase(template) {
+            if (!template || !template.url) {
+                console.error("No meme template provided.");
+                return;
+            }
+
+            document.getElementById('submissionPhase').classList.add('hidden');
+
+            const memeModal = document.getElementById('memeCreationModal');
+            memeModal.classList.remove('hidden');
+            memeModal.classList.add('flex');
+            memeModal.style.opacity = "1";
+            memeModal.style.visibility = "visible";
+
+            initializeMemeCreation(template);
+
+            document.getElementById('saveMeme').onclick = () => {
+                const allInputs = document.querySelectorAll('#captionInputs input');
+                const captions = Array.from(allInputs).map((inp) => inp.value);
+
+                socket.emit("submit_meme", { gameId, captions }, (response) => {
+                    console.log("📤 Meme submission response:", response);
+                    if (response.error) {
+                        alert(response.error);
+                    } else {
+                        memeModal.classList.add('hidden');
+                    }
+                });
+            };
+
+            document.getElementById('cancelMemeCreation').onclick = () => {
+                memeModal.classList.add('hidden');
+            };
+        }
+
+        function setupVotingPhase(template, captions, isOwnMeme = false) {
+        const phase = document.getElementById('votingPhase');
+        console.log("🧩 Making voting phase visible");
+        phase.classList.remove('hidden');
+        console.log("🖼️ setting voting meme template to:", template.url);
+        const memeImg = document.getElementById('votingMemeTemplate');
+        memeImg.src = template.url;
+        memeImg.onload = () => console.log("✅ Meme image loaded");
+        memeImg.onerror = () => console.error("❌ Meme image failed to load");
+
+        const display = document.getElementById('currentMemeDisplay');
+        display.querySelectorAll('.caption').forEach(el => el.remove());
+
+        captions.forEach((caption, index) => {
+            const div = document.createElement('div');
+            div.className = 'caption absolute text-white text-2xl font-bold text-center';
+            div.style.top = `${(index + 1) * 25}%`;
+            div.style.width = '100%';
+            div.textContent = caption;
+            display.appendChild(div);
+        });
+
+        // Disable voting buttons if it's your own meme
+        document.getElementById('voteYes').disabled = isOwnMeme;
+        document.getElementById('voteNo').disabled = isOwnMeme;
+
+        // Add opacity if disabled for better UX (optional)
+        const buttons = [document.getElementById('voteYes'), document.getElementById('voteNo')];
+        buttons.forEach(btn => {
+            if (isOwnMeme) {
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+        }
+
+
+        function showNextSubmission() {
+            if (currentVoteIndex >= allSubmissions.length) {
+                document.getElementById('votingPhase').classList.add('hidden');
+                socket.emit('voting_done');
+                return;
+            }
+
+            document.getElementById('votingPhase').classList.remove('hidden');
+
+            const current = allSubmissions[currentVoteIndex];
+            currentSubmission = current; // ✅ This is the missing line!
+
+            setupVotingPhase(votingTemplate, current.captions); // Show meme + captions
+
+            // 👇 Disable buttons if it's your own meme
+            if (current.playerId === playerId) {
+                document.getElementById('voteYes').disabled = true;
+                document.getElementById('voteNo').disabled = true;
+            } else {
+                document.getElementById('voteYes').disabled = false;
+                document.getElementById('voteNo').disabled = false;
+            }
+        }
+
+
+
+
+        function showResults(results) {
+            document.getElementById('resultsPhase').classList.remove('hidden');
+            const container = document.getElementById('resultsPhase').querySelector('.grid');
+            container.innerHTML = results.map(result => `
+                <div class="bg-black/30 rounded-xl p-4">
+                    <div class="font-bold mb-2">${result.username}</div>
+                    <img src="${result.memeUrl}" class="w-full rounded-lg mb-2">
+                    <div class="text-center"><span class="text-green-400">${result.votes} votes</span></div>
+                </div>`).join('');
+        }
+
+        function updateScores(players) {
+            const container = document.getElementById('playerScores');
+            container.innerHTML = players.map(p => `
+                <div class="bg-black/20 rounded-lg p-3 text-center">
+                    <div class="font-bold">${p.username}</div>
+                    <div class="text-purple-400">${p.score} points</div>
+                </div>`).join('');
+        }
+
+        function updateTimer(seconds) {
+            const timer = document.getElementById('timeLeft');
+            timer.textContent = `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
+        }
+
+        const chatForm = document.getElementById('chatForm');
+        const messageInput = document.getElementById('messageInput');
+        const messagesContainer = document.getElementById('messages');
+
+        chatForm.onsubmit = (e) => {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (message) {
+                socket.emit('game_chat', { gameId, message });
+                messageInput.value = '';
+            }
+        };
+
+        socket.on('game_chat', (data) => {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'bg-black/30 rounded-lg p-3 break-words';
+            messageEl.innerHTML = `
+                <span class="text-purple-400 font-semibold">${data.username}:</span>
+                <span class="ml-2 text-white">${data.message}</span>`;
+            messagesContainer.appendChild(messageEl);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        });
+        console.log("🔍 Voting on submission:", currentVotingSubmission);
+        document.getElementById('voteYes').onclick = () => submitVote(true);
+        document.getElementById('voteNo').onclick = () => submitVote(false);
+
+        function submitVote(isLiked) {
+            if (!currentVotingSubmission || !currentVotingSubmission.playerId) {
+                console.warn("🚫 No valid submission to vote on.");
+                return;
+            }
+
+            console.log("🔍 Voting on submission:", currentVotingSubmission);
+
+            socket.emit('submit_vote', {
+                gameId,
+                submissionPlayerId: currentVotingSubmission.playerId,
+            }, (response) => {
+                console.log('📬 Vote submitted response:', response);
+            });
+
+            // Disable voting buttons until next submission arrives
+            document.getElementById('voteYes').disabled = true;
+            document.getElementById('voteNo').disabled = true;
+        }
+       
+
+
+
+    });
+        window.addEventListener('DOMContentLoaded', () => {
+        const modal = document.getElementById('memeCreationModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+        }
+        });
+    </script>
+</body>
+
+</html>
